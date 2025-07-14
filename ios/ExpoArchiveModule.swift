@@ -1,4 +1,37 @@
 import ExpoModulesCore
+import ZIPFoundation
+import Foundation
+
+class ProgressObserver: NSObject {
+  private let callback: (Double) -> Void
+  private var lastReportedProgress: Double = 0.0
+  private let progressThreshold: Double
+  
+  init(threshold: Double = 0.01, callback: @escaping (Double) -> Void) {
+    self.progressThreshold = threshold
+    self.callback = callback
+    super.init()
+  }
+  
+  override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
+    if keyPath == "fractionCompleted", let progress = object as? Progress {
+      let currentProgress = progress.fractionCompleted
+      
+      // 检查是否应该报告进度：达到阈值、完成、或首次报告
+      let progressDiff = currentProgress - lastReportedProgress
+      let shouldReport = progressDiff >= progressThreshold || 
+                        currentProgress >= 1.0 || 
+                        lastReportedProgress == 0.0
+      
+      print("Current: \(currentProgress), Last: \(lastReportedProgress), Diff: \(progressDiff), Threshold: \(progressThreshold), Should report: \(shouldReport)")
+      
+      if shouldReport {
+        callback(currentProgress)
+        lastReportedProgress = currentProgress
+      }
+    }
+  }
+}
 
 public class ExpoArchiveModule: Module {
   // Each module class must implement the definition function. The definition consists of components
@@ -10,39 +43,75 @@ public class ExpoArchiveModule: Module {
     // The module will be accessible from `requireNativeModule('ExpoArchive')` in JavaScript.
     Name("ExpoArchive")
 
-    // Sets constant properties on the module. Can take a dictionary or a closure that returns a dictionary.
-    Constants([
-      "PI": Double.pi
-    ])
-
     // Defines event names that the module can send to JavaScript.
-    Events("onChange")
+    Events("onUnzipProgress", "onZipProgress")
 
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      return "Hello world! 👋"
-    }
-
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { (value: String) in
-      // Send an event to JavaScript.
-      self.sendEvent("onChange", [
-        "value": value
-      ])
-    }
-
-    // Enables the module to be used as a native view. Definition components that are accepted as part of the
-    // view definition: Prop, Events.
-    View(ExpoArchiveView.self) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { (view: ExpoArchiveView, url: URL) in
-        if view.webView.url != url {
-          view.webView.load(URLRequest(url: url))
+    // Archive/Unzip functions
+    AsyncFunction("unzipAsync") { (zipPath: String, destinationPath: String, options: [String: Any]?, promise: Promise) -> String in
+        let fileManager = FileManager.default
+        let zipURL = URL(string: zipPath)!
+        let destinationURL = URL(string: destinationPath)!
+        
+        // Parse options
+        let overwrite = options?["overwrite"] as? Bool ?? true
+        let pathEncoding = options?["pathEncoding"] as? String
+        let skipCRC32 = options?["skipCRC32"] as? Bool ?? false
+        let allowUncontainedSymlinks = options?["allowUncontainedSymlinks"] as? Bool ?? false
+        
+        let progress = Progress()
+        
+        // 创建进度观察者，使用更小的阈值 (0.1% 而不是 1%)
+        let observer = ProgressObserver(threshold: 0.001) { fractionCompleted in
+            self.sendEvent("onUnzipProgress", [
+                "progress": fractionCompleted
+            ])
         }
-      }
+        progress.addObserver(observer, forKeyPath: "fractionCompleted", options: .new, context: nil)
+        
+        try fileManager.unzipItem(
+            at: zipURL,
+            to: destinationURL,
+            skipCRC32: skipCRC32,
+            allowUncontainedSymlinks: allowUncontainedSymlinks,
+            progress: progress,
+            pathEncoding: nil
+        )
+        
+        progress.removeObserver(observer, forKeyPath: "fractionCompleted")
+        
+        return destinationPath
+    }
+    
+    AsyncFunction("zipAsync") { (sourcePath: String, zipPath: String, options: [String: Any]?) -> String in
+        let fileManager = FileManager.default
+        let sourceURL = URL(string: sourcePath)!
+        let zipURL = URL(string: zipPath)!
+        
+        // Parse options
+        let compressionMethod = options?["compressionMethod"] as? String ?? "deflate"
+        let shouldKeepParent = options?["shouldKeepParent"] as? Bool ?? false
 
-      Events("onLoad")
+        let progress = Progress()
+        
+        // 创建进度观察者，使用更小的阈值 (0.1% 而不是 1%)
+        let observer = ProgressObserver(threshold: 0.001) { fractionCompleted in
+            self.sendEvent("onZipProgress", [
+                "progress": fractionCompleted
+            ])
+        }
+        progress.addObserver(observer, forKeyPath: "fractionCompleted", options: .new, context: nil)
+        
+        try fileManager.zipItem(
+            at: sourceURL,
+            to: zipURL,
+            shouldKeepParent: shouldKeepParent,
+            compressionMethod: .deflate,
+            progress: progress
+        )
+        
+        progress.removeObserver(observer, forKeyPath: "fractionCompleted")
+        
+        return zipPath
     }
   }
 }

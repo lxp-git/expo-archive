@@ -1,12 +1,25 @@
-import { NativeModule, requireNativeModule } from 'expo';
+import { NativeModule, requireNativeModule } from "expo";
 
-import { ExpoArchiveModuleEvents } from './ExpoArchive.types';
+import {
+  ExpoArchiveModuleEvents,
+  UnzipOptions,
+  ZipOptions,
+} from "./ExpoArchive.types";
 
 declare class ExpoArchiveModule extends NativeModule<ExpoArchiveModuleEvents> {
-  PI: number;
-  hello(): string;
-  setValueAsync(value: string): Promise<void>;
+  // Archive/Unzip methods
+  zipAsync(
+    sourcePath: string,
+    zipPath: string,
+    options?: ZipOptions
+  ): Promise<string>;
+
+  unzipAsync(
+    zipPath: string,
+    destinationPath: string,
+    options?: UnzipOptions
+  ): Promise<string>;
 }
 
 // This call loads the native module object from the JSI.
-export default requireNativeModule<ExpoArchiveModule>('ExpoArchive');
+export default requireNativeModule<ExpoArchiveModule>("ExpoArchive");
