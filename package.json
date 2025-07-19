@@ -31,10 +31,12 @@
   "homepage": "http://github.com/lxp-git/expo-archive#readme",
   "dependencies": {},
   "devDependencies": {
+    "@release-it/conventional-changelog": "^10.0.1",
     "@types/react": "~19.0.0",
-    "expo-module-scripts": "^4.1.9",
     "expo": "~53.0.0",
-    "react-native": "0.79.1"
+    "expo-module-scripts": "^4.1.9",
+    "react-native": "0.79.1",
+    "release-it": "^19.0.4"
   },
   "peerDependencies": {
     "expo": "*",
