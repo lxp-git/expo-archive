@@ -5,9 +5,6 @@ name: Publish Node.js Package
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/actions
 
 jobs:
   publish-npm:
