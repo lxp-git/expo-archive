@@ -79,10 +79,10 @@ public class ExpoArchiveModule: Module {
         
         progress.removeObserver(observer, forKeyPath: "fractionCompleted")
         
-        return destinationPath
+        promise.resolve(destinationPath)
     }
     
-    AsyncFunction("zipAsync") { (sourcePath: String, zipPath: String, options: [String: Any]?) -> String in
+    AsyncFunction("zipAsync") { (sourcePath: String, zipPath: String, options: [String: Any]?, promise: Promise) -> String in
         let fileManager = FileManager.default
         let sourceURL = URL(string: sourcePath)!
         let zipURL = URL(string: zipPath)!
@@ -111,7 +111,7 @@ public class ExpoArchiveModule: Module {
         
         progress.removeObserver(observer, forKeyPath: "fractionCompleted")
         
-        return zipPath
+        promise.resolve(zipPath)
     }
   }
 }
